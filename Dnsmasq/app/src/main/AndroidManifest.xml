@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="personal.gino.dnsmasq" >
+    package="personal.gino.dnsmasq">
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/AppTheme" >
-        <receiver android:name=".DNSWidget" >
+        android:theme="@style/AppTheme">
+        <receiver android:name=".DNSWidget">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="personal.gino.dnsmasq.DNSMASQ_ACTION" />
             </intent-filter>
 
             <meta-data
@@ -17,5 +18,7 @@
                 android:resource="@xml/dnswidget_info" />
         </receiver>
     </application>
+
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
 </manifest>
