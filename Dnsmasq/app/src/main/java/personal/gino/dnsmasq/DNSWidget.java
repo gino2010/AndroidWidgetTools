@@ -91,18 +91,8 @@ public class DNSWidget extends AppWidgetProvider {
             // check dnsmasq whether is running
             if (check()) {
                 stop();
-//                if (stop()) {
-//                    Toast.makeText(context, R.string.stop, Toast.LENGTH_LONG).show();
-//                } else {
-//                    Toast.makeText(context, R.string.stop_error, Toast.LENGTH_LONG).show();
-//                }
             } else {
                 start();
-//                if (start()) {
-//                    Toast.makeText(context, R.string.start, Toast.LENGTH_LONG).show();
-//                } else {
-//                    Toast.makeText(context, R.string.start_error, Toast.LENGTH_LONG).show();
-//                }
             }
 
             //app widget update
@@ -180,12 +170,9 @@ public class DNSWidget extends AppWidgetProvider {
             dos.writeBytes(cmd);
             dos.flush();
             dos.close();
-//            boolean tempcheck = check();
-//            Log.d(TAG, "tempcheck: " + Boolean.toString(tempcheck));
-//            return tempcheck;
+            // wait 0.5s for dnsmasq startup
             SystemClock.sleep(500);
         } catch (IOException e) {
-//            return false;
             Log.e(TAG, "dnsmasq start error");
         }
     }
@@ -202,10 +189,9 @@ public class DNSWidget extends AppWidgetProvider {
             dos.writeBytes("rm " + PID);
             dos.flush();
             dos.close();
-//            return process.waitFor() == 0;
+            // the code of waitfor is 255
             Log.d(TAG, "return code: " + process.waitFor());
         } catch (IOException | InterruptedException e) {
-//            return false;
             Log.e(TAG, "dnsmasq stop error");
         }
     }
