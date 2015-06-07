@@ -86,8 +86,7 @@ public class ADBWidget extends AppWidgetProvider {
                     Toast.makeText(context, R.string.no_wifi, Toast.LENGTH_LONG).show();
                     //connected wifi and open port
                 } else if (isConnectWIFI(context)) {
-                    boolean temp = open();
-                    if (temp) {
+                    if (open()) {
                         String ipInfo = getWIFIIP(context);
                         Toast.makeText(context, context.getString(R.string.open) + ipInfo, Toast.LENGTH_LONG).show();
                     } else {
