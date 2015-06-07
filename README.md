@@ -19,7 +19,7 @@ Change dns to use dnsmasq server
 
 Notice: Widget needs root permission
 
-Version: 0.1
+Version: 0.4
 
 License
 -----------------
