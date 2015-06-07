@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">WiFiADB</string>
+    <string name="add_widget">Add widget</string>
+    <string name="close">Close wireless adb port</string>
+    <string name="open">Open wireless adb port, ip:</string>
+    <string name="no_wifi">Can\'t open, Connect WiFi at first</string>
+    <string name="no_root">Can\'t open, I need root access</string>
+</resources>
