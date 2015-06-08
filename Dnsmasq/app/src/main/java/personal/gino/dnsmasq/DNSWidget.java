@@ -7,7 +7,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.AssetManager;
-import android.os.Environment;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.SystemClock;
 import android.util.Log;
 import android.widget.RemoteViews;
@@ -21,6 +23,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Properties;
 
 
 /**
@@ -28,9 +37,48 @@ import java.io.OutputStream;
  */
 public class DNSWidget extends AppWidgetProvider {
     private static final String TAG = "dnsmasq widget";
-    private static final String CONF = Environment.getExternalStorageDirectory().getAbsolutePath() + "/dnsmasq.conf";
-    private static String PID = Environment.getExternalStorageDirectory().getAbsolutePath() + "/dnsmasq.pid";
+    // Environment.getExternalStorageDirectory().getPath() can't use,
+    // because some devices return /storage/emulated/0
+    private static final String CONF = "/sdcard/dnsmasq.conf";
     private static final String DNSMASQ_ACTION = "personal.gino.dnsmasq.DNSMASQ_ACTION";
+    private static String PID = "/sdcard/dnsmasq.pid";
+
+    public static void setIpAssignment(String assign, WifiConfiguration wifiConf)
+            throws SecurityException, IllegalArgumentException, NoSuchFieldException, IllegalAccessException {
+        setEnumField(wifiConf, assign, "ipAssignment");
+    }
+
+    public static void setDNS(InetAddress dns, WifiConfiguration wifiConf)
+            throws SecurityException, IllegalArgumentException, NoSuchFieldException, IllegalAccessException {
+        Object linkProperties = getField(wifiConf, "linkProperties");
+        if (linkProperties == null) return;
+
+        ArrayList<InetAddress> mDnses = (ArrayList<InetAddress>) getDeclaredField(linkProperties, "mDnses");
+        mDnses.clear(); //or add a new dns address , here I just want to replace DNS1
+        mDnses.add(dns);
+    }
+
+    private static Object getField(Object obj, String name)
+            throws SecurityException, NoSuchFieldException, IllegalArgumentException, IllegalAccessException {
+        Field f = obj.getClass().getField(name);
+        Object out = f.get(obj);
+        return out;
+    }
+
+    private static Object getDeclaredField(Object obj, String name)
+            throws SecurityException, NoSuchFieldException,
+            IllegalArgumentException, IllegalAccessException {
+        Field f = obj.getClass().getDeclaredField(name);
+        f.setAccessible(true);
+        Object out = f.get(obj);
+        return out;
+    }
+
+    private static void setEnumField(Object obj, String value, String name)
+            throws SecurityException, NoSuchFieldException, IllegalArgumentException, IllegalAccessException {
+        Field f = obj.getClass().getField(name);
+        f.set(obj, Enum.valueOf((Class<Enum>) f.getType(), value));
+    }
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -43,8 +91,6 @@ public class DNSWidget extends AppWidgetProvider {
     @Override
     public void onEnabled(Context context) {
         // Enter relevant functionality for when the first widget is created
-        File dir = Environment.getExternalStorageDirectory();
-        Log.d(TAG, dir.getAbsolutePath());
         File dnsconf = new File(CONF);
         if (!dnsconf.exists()) {
             Log.d(TAG, "copy conf file");
@@ -91,8 +137,10 @@ public class DNSWidget extends AppWidgetProvider {
             // check dnsmasq whether is running
             if (check()) {
                 stop();
+                setDhcp(context);
             } else {
                 start();
+                setStatic(context);
             }
 
             //app widget update
@@ -159,40 +207,96 @@ public class DNSWidget extends AppWidgetProvider {
         return result;
     }
 
+    // start dnsmasq
     private void start() {
         Runtime runtime = Runtime.getRuntime();
         try {
             Process process = runtime.exec("su");
             DataOutputStream dos = new DataOutputStream(process.getOutputStream());
-//            String cmd = "dnsmasq -C " + CONF + " -x " + PID + "\n";
-            String cmd = "dnsmasq -C /sdcard/dnsmasq.conf -x /sdcard/dnsmasq.pid\n";
+            String cmd = "dnsmasq -C " + CONF + " -x " + PID + "\n";
+//            String cmd = "dnsmasq -C /sdcard/dnsmasq.conf -x /sdcard/dnsmasq.pid\n";
             Log.d(TAG, "start cmd:" + cmd);
             dos.writeBytes(cmd);
             dos.flush();
-            dos.close();
             // wait 0.5s for dnsmasq startup
             SystemClock.sleep(500);
+            dos.close();
         } catch (IOException e) {
             Log.e(TAG, "dnsmasq start error");
         }
     }
 
+    // stop dnsmasq
     private void stop() {
         Runtime runtime = Runtime.getRuntime();
         try {
             Process process = runtime.exec("su");
             DataOutputStream dos = new DataOutputStream(process.getOutputStream());
-//            String cmd = "kill $(cat " + PID + ")\n";
-            String cmd = "kill $(cat /sdcard/dnsmasq.pid)\n";
+            String cmd = "kill $(cat " + PID + ")\n";
+//            String cmd = "kill $(cat /sdcard/dnsmasq.pid)\n";
             Log.d(TAG, "stop cmd:" + cmd);
             dos.writeBytes(cmd);
-            dos.writeBytes("rm " + PID);
+            dos.writeBytes("rm " + PID + "\n");
             dos.flush();
+            SystemClock.sleep(500);
             dos.close();
             // the code of waitfor is 255
-            Log.d(TAG, "return code: " + process.waitFor());
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             Log.e(TAG, "dnsmasq stop error");
+        }
+    }
+
+    // set wifi to static ip
+    private void setStatic(Context context) {
+        WifiConfiguration wifiConf = null;
+        WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        WifiInfo connectionInfo = wifiManager.getConnectionInfo();
+        List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
+        for (WifiConfiguration conf : configuredNetworks) {
+            if (conf.networkId == connectionInfo.getNetworkId()) {
+                wifiConf = conf;
+                break;
+            }
+        }
+        try {
+            setIpAssignment("STATIC", wifiConf); //or "DHCP" for dynamic setting
+            setDNS(InetAddress.getByName("127.0.0.1"), wifiConf);
+            wifiManager.updateNetwork(wifiConf);
+            wifiManager.saveConfiguration();
+            wifiManager.disconnect();
+            wifiManager.reconnect();
+            Log.d(TAG, "set static");
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // set wifi to dhcp
+    private void setDhcp(Context context) {
+        WifiConfiguration wifiConf = null;
+        WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        WifiInfo connectionInfo = wifiManager.getConnectionInfo();
+        List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
+        for (WifiConfiguration conf : configuredNetworks) {
+            if (conf.networkId == connectionInfo.getNetworkId()) {
+                wifiConf = conf;
+                break;
+            }
+        }
+        try {
+            setIpAssignment("DHCP", wifiConf); //or "DHCP" for dynamic setting
+            wifiManager.updateNetwork(wifiConf);
+            wifiManager.saveConfiguration();
+            wifiManager.disconnect();
+            wifiManager.reconnect();
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
         }
     }
 }
