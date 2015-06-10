@@ -5,4 +5,5 @@
     <string name="stop">dnsmasq is stopped</string>
     <string name="stop_error">stopping is error</string>
     <string name="start_error">starting is error</string>
+    <string name="wifi_close">wifi is not open</string>
 </resources>

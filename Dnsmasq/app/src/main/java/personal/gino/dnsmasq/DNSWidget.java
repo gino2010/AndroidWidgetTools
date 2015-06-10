@@ -60,10 +60,13 @@ public class DNSWidget extends AppWidgetProvider {
     public static void setDNS(InetAddress dns, WifiConfiguration wifiConf)
             throws SecurityException, IllegalArgumentException, NoSuchFieldException,
             IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            // support android L
             Object ipConfiguration = wifiConf.getClass().getMethod("getIpConfiguration").invoke(wifiConf);
             Object staticIpConfiguration = ipConfiguration.getClass().getMethod("getStaticIpConfiguration").invoke(ipConfiguration);
-            if(staticIpConfiguration == null) {
+            // maybe is null, so you need to initial it manually
+            if (staticIpConfiguration == null) {
                 Log.d(TAG, "staticIpConfiguration is null");
                 ipConfiguration.getClass().getMethod("init").invoke(ipConfiguration);
                 return;
@@ -71,11 +74,8 @@ public class DNSWidget extends AppWidgetProvider {
             ArrayList<InetAddress> dnsServers = (ArrayList<InetAddress>) getDeclaredField(staticIpConfiguration, "dnsServers");
             dnsServers.clear();
             dnsServers.add(dns);
-            LinkAddress ipAddress = (LinkAddress) getDeclaredField(staticIpConfiguration, "ipAddress");
-            Log.d(TAG, ipAddress.toString());
-            InetAddress gateway = (InetAddress) getDeclaredField(staticIpConfiguration, "gateway");
-            Log.d(TAG, gateway.toString());
-        }else {
+        } else {
+            // support android 3.X~4.X
             Object linkProperties = getField(wifiConf, "linkProperties");
             if (linkProperties == null) return;
             ArrayList<InetAddress> mDnses = (ArrayList<InetAddress>) getDeclaredField(linkProperties, "mDnses");
@@ -160,6 +160,10 @@ public class DNSWidget extends AppWidgetProvider {
         super.onReceive(context, intent);
         Log.d(TAG, intent.getAction());
         if (intent.getAction() != null && intent.getAction().equals(DNSMASQ_ACTION)) {
+            if(!isConnectWIFI(context)){
+                Toast.makeText(context, R.string.wifi_close, Toast.LENGTH_LONG).show();
+                return;
+            }
             // check dnsmasq whether is running
             if (check()) {
                 stop();
