@@ -119,7 +119,7 @@ public class DNSWidget extends AppWidgetProvider {
         // Enter relevant functionality for when the first widget is created
         File dnsconf = new File(CONF);
         if (!dnsconf.exists()) {
-            Log.d(TAG, "copy conf file");
+            Log.i(TAG, "copy conf file");
             AssetManager assetManager = context.getAssets();
             InputStream in = null;
             OutputStream out = null;
@@ -162,6 +162,7 @@ public class DNSWidget extends AppWidgetProvider {
         if (intent.getAction() != null && intent.getAction().equals(DNSMASQ_ACTION)) {
             if(!isConnectWIFI(context)){
                 Toast.makeText(context, R.string.wifi_close, Toast.LENGTH_LONG).show();
+                Log.w(TAG, "wifi is not open");
                 return;
             }
             // check dnsmasq whether is running

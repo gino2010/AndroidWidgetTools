@@ -84,6 +84,7 @@ public class ADBWidget extends AppWidgetProvider {
             } else {
                 if (!isConnectWIFI(context)) {
                     Toast.makeText(context, R.string.no_wifi, Toast.LENGTH_LONG).show();
+                    Log.w(TAG, "wifi is not open");
                     //connected wifi and open port
                 } else if (isConnectWIFI(context)) {
                     if (open()) {
