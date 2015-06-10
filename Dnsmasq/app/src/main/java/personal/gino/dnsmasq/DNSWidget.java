@@ -7,9 +7,13 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.AssetManager;
+import android.net.ConnectivityManager;
+import android.net.LinkAddress;
+import android.net.NetworkInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.SystemClock;
 import android.util.Log;
 import android.widget.RemoteViews;
@@ -24,12 +28,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
-import java.util.Properties;
 
 
 /**
@@ -44,18 +47,41 @@ public class DNSWidget extends AppWidgetProvider {
     private static String PID = "/sdcard/dnsmasq.pid";
 
     public static void setIpAssignment(String assign, WifiConfiguration wifiConf)
-            throws SecurityException, IllegalArgumentException, NoSuchFieldException, IllegalAccessException {
-        setEnumField(wifiConf, assign, "ipAssignment");
+            throws SecurityException, IllegalArgumentException, NoSuchFieldException,
+            IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Object ipConfiguration = wifiConf.getClass().getMethod("getIpConfiguration").invoke(wifiConf);
+            setEnumField(ipConfiguration, assign, "ipAssignment");
+        } else {
+            setEnumField(wifiConf, assign, "ipAssignment");
+        }
     }
 
     public static void setDNS(InetAddress dns, WifiConfiguration wifiConf)
-            throws SecurityException, IllegalArgumentException, NoSuchFieldException, IllegalAccessException {
-        Object linkProperties = getField(wifiConf, "linkProperties");
-        if (linkProperties == null) return;
-
-        ArrayList<InetAddress> mDnses = (ArrayList<InetAddress>) getDeclaredField(linkProperties, "mDnses");
-        mDnses.clear(); //or add a new dns address , here I just want to replace DNS1
-        mDnses.add(dns);
+            throws SecurityException, IllegalArgumentException, NoSuchFieldException,
+            IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Object ipConfiguration = wifiConf.getClass().getMethod("getIpConfiguration").invoke(wifiConf);
+            Object staticIpConfiguration = ipConfiguration.getClass().getMethod("getStaticIpConfiguration").invoke(ipConfiguration);
+            if(staticIpConfiguration == null) {
+                Log.d(TAG, "staticIpConfiguration is null");
+                ipConfiguration.getClass().getMethod("init").invoke(ipConfiguration);
+                return;
+            }
+            ArrayList<InetAddress> dnsServers = (ArrayList<InetAddress>) getDeclaredField(staticIpConfiguration, "dnsServers");
+            dnsServers.clear();
+            dnsServers.add(dns);
+            LinkAddress ipAddress = (LinkAddress) getDeclaredField(staticIpConfiguration, "ipAddress");
+            Log.d(TAG, ipAddress.toString());
+            InetAddress gateway = (InetAddress) getDeclaredField(staticIpConfiguration, "gateway");
+            Log.d(TAG, gateway.toString());
+        }else {
+            Object linkProperties = getField(wifiConf, "linkProperties");
+            if (linkProperties == null) return;
+            ArrayList<InetAddress> mDnses = (ArrayList<InetAddress>) getDeclaredField(linkProperties, "mDnses");
+            mDnses.clear(); //or add a new dns address , here I just want to replace DNS1
+            mDnses.add(dns);
+        }
     }
 
     private static Object getField(Object obj, String name)
@@ -262,7 +288,7 @@ public class DNSWidget extends AppWidgetProvider {
             setIpAssignment("STATIC", wifiConf); //or "DHCP" for dynamic setting
             setDNS(InetAddress.getByName("127.0.0.1"), wifiConf);
             wifiManager.updateNetwork(wifiConf);
-            wifiManager.saveConfiguration();
+//            wifiManager.saveConfiguration(); //useless
             wifiManager.disconnect();
             wifiManager.reconnect();
             Log.d(TAG, "set static");
@@ -271,6 +297,10 @@ public class DNSWidget extends AppWidgetProvider {
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         } catch (UnknownHostException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
             e.printStackTrace();
         }
     }
@@ -290,14 +320,25 @@ public class DNSWidget extends AppWidgetProvider {
         try {
             setIpAssignment("DHCP", wifiConf); //or "DHCP" for dynamic setting
             wifiManager.updateNetwork(wifiConf);
-            wifiManager.saveConfiguration();
+//            wifiManager.saveConfiguration(); //useless
             wifiManager.disconnect();
             wifiManager.reconnect();
         } catch (NoSuchFieldException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
             e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
         }
+    }
+
+    // check wifi status
+    private boolean isConnectWIFI(Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+        return info != null && info.isConnected();
     }
 }
 
