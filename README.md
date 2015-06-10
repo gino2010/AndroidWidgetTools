@@ -1,5 +1,7 @@
 # AndroidWidgetTools
 Personal android widget tool applications
+All widgets are tested in android 4.4 and android 5.0.2, so they should work on android 4.x and android 5.x well.
+Theoretically, all widgets also support android 3.x, but I didn't test them in android 3.x
 
 1. Wireless ADB Widget
 -----------------
@@ -19,7 +21,9 @@ Change dns to use dnsmasq server
 
 Notice: Widget needs root permission
 
-Version: 0.4
+Version: 0.8
+
+Need to optimise......
 
 License
 -----------------
