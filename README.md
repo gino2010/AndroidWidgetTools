@@ -9,6 +9,8 @@ Theoretically, all widgets also support android 3.x, but I didn't test them in a
 -----------------
 This is a recode version in android studio
 
+This widget will open remote adb service for LAN work. Only support for wifi.
+
 Set service.adb.tcp.port property to open or close wireless adb
 
 Notice: Widget needs root permission
@@ -25,7 +27,7 @@ Notice: Widget needs root permission
 
 Version: 0.8
 
-Need to optimise......
+Need to optimise...... And now only works in wifi, and try to support mobile network.
 
 License
 -----------------
