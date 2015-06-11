@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.AssetManager;
 import android.net.ConnectivityManager;
+import android.net.DhcpInfo;
 import android.net.LinkAddress;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiConfiguration;
@@ -46,6 +47,9 @@ public class DNSWidget extends AppWidgetProvider {
     private static final String CONF = "/sdcard/dnsmasq.conf";
     private static final String DNSMASQ_ACTION = "personal.gino.dnsmasq.DNSMASQ_ACTION";
     private static String PID = "/sdcard/dnsmasq.pid";
+    private static String s_ipaddress;
+    private static String s_gateway;
+    private static int s_netmask;
 
     private static Object getField(Object obj, String name)
             throws SecurityException, NoSuchFieldException, IllegalArgumentException, IllegalAccessException {
@@ -182,35 +186,44 @@ public class DNSWidget extends AppWidgetProvider {
         }
     }
 
-    private void setDNS(InetAddress dns, WifiConfiguration wifiConf, WifiManager wifiManager, Context context)
+    private void setDNS(InetAddress dns, WifiConfiguration wifiConf)
             throws SecurityException, IllegalArgumentException, NoSuchFieldException,
             IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            // support android L
+            // support android 5.x
             Object ipConfiguration = wifiConf.getClass().getMethod("getIpConfiguration").invoke(wifiConf);
             Object staticIpConfiguration = ipConfiguration.getClass().getMethod("getStaticIpConfiguration").invoke(ipConfiguration);
+            Field ipAddress = null;
+            Field gateway = null;
             // maybe is null, so you need to initial it manually
             if (staticIpConfiguration == null) {
                 Log.d(TAG, "staticIpConfiguration is null");
                 try {
+                    // create staticIpConfiguration
                     staticIpConfiguration = Class.forName("android.net.StaticIpConfiguration").newInstance();
-                } catch (InstantiationException e) {
-                    e.printStackTrace();
-                } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
-                }
-                Log.d(TAG, staticIpConfiguration == null ? "null" : "not null");
-                try {
+
+                    // create static info
+                    @SuppressWarnings("unchecked")
                     ArrayList<InetAddress> dnsServers = (ArrayList<InetAddress>) getDeclaredField(staticIpConfiguration, "dnsServers");
                     dnsServers.add(dns);
-
-                    LinkAddress obj = (LinkAddress)Class.forName("android.net.LinkAddress").getConstructor(InetAddress.class, int.class).newInstance(InetAddress.getByName("192.168.2.101"), 24);
-                    Field ipAddress = staticIpConfiguration.getClass().getField("ipAddress");
+                    LinkAddress obj = (LinkAddress) Class.forName("android.net.LinkAddress").getConstructor(InetAddress.class, int.class).newInstance(InetAddress.getByName(s_ipaddress), s_netmask);
+                    ipAddress = staticIpConfiguration.getClass().getField("ipAddress");
                     ipAddress.set(staticIpConfiguration, obj);
-//
-                    Field gateway = staticIpConfiguration.getClass().getField("gateway");
-                    gateway.set(staticIpConfiguration, InetAddress.getByName("192.168.2.1"));
+                    gateway = staticIpConfiguration.getClass().getField("gateway");
+                    gateway.set(staticIpConfiguration, InetAddress.getByName(s_gateway));
+
+                    // get Enum object
+                    @SuppressWarnings("unchecked")
+                    Class<Enum> ipencl = (Class<Enum>) Class.forName("android.net.IpConfiguration$IpAssignment");
+                    @SuppressWarnings("unchecked")
+                    Class<Enum> encl = (Class<Enum>) Class.forName("android.net.IpConfiguration$ProxySettings");
+
+                    // initial staticipconfiguration
+                    Method method = ipConfiguration.getClass().getDeclaredMethod("init", ipencl, encl,
+                            Class.forName("android.net.StaticIpConfiguration"), Class.forName("android.net.ProxyInfo"));
+                    method.setAccessible(true);
+                    method.invoke(ipConfiguration, Enum.valueOf(ipencl, "STATIC"), Enum.valueOf(encl, "NONE"), staticIpConfiguration, null);
                 } catch (UnknownHostException e) {
                     e.printStackTrace();
                 } catch (NullPointerException e) {
@@ -220,68 +233,24 @@ public class DNSWidget extends AppWidgetProvider {
                 } catch (ClassNotFoundException e) {
                     e.printStackTrace();
                 }
-//                wifiManager.saveConfiguration();
-//                int ip = wifiManager.getConnectionInfo().getIpAddress();
-//                Log.d(TAG, " IP:" + (ip & 0xFF) + "." + ((ip >> 8) & 0xFF) + "." + ((ip >> 16) & 0xFF) + "." + (ip >> 24 & 0xFF));
-//                wifiManager.disconnect();
-//                wifiManager.reconnect();
-//                while(!isConnectWIFI(context)){
-//                    SystemClock.sleep(100);
-//                }
-//                staticIpConfiguration = ipConfiguration.getClass().getMethod("getStaticIpConfiguration").invoke(ipConfiguration);
-                //
+            } else {
                 try {
                     @SuppressWarnings("unchecked")
-                    Class<Enum> ipencl = (Class<Enum>) Class.forName("android.net.IpConfiguration$IpAssignment");
-                    @SuppressWarnings("unchecked")
-                    Class<Enum> encl = (Class<Enum>) Class.forName("android.net.IpConfiguration$ProxySettings");
-
-//                    Method[] methods = ipConfiguration.getClass().getDeclaredMethods();
-//                    for (Method method : methods) {
-//                        String methodname = method.getName();
-//                        Log.d(TAG, "---------:!" + methodname);
-//                        if (methodname.equals("init")) {
-//                            Class[] classes = method.getParameterTypes();
-//                            for (Class clazz : classes) {
-//                                Log.d(TAG, methodname + ": " + clazz.toString());
-//                            }
-//                        }
-//                    }
-                    Method method = ipConfiguration.getClass().getDeclaredMethod("init", ipencl, encl,
-                            Class.forName("android.net.StaticIpConfiguration"), Class.forName("android.net.ProxyInfo"));
-                    method.setAccessible(true);
-                    method.invoke(ipConfiguration, Enum.valueOf(ipencl, "STATIC"), Enum.valueOf(encl, "NONE"), staticIpConfiguration, null);
+                    ArrayList<InetAddress> dnsServers = (ArrayList<InetAddress>) getDeclaredField(staticIpConfiguration, "dnsServers");
+                    dnsServers.clear();
+                    dnsServers.add(dns);
+                    LinkAddress obj = (LinkAddress) Class.forName("android.net.LinkAddress").getConstructor(InetAddress.class, int.class).newInstance(InetAddress.getByName(s_ipaddress), s_netmask);
+                    ipAddress = staticIpConfiguration.getClass().getField("ipAddress");
+                    ipAddress.set(staticIpConfiguration, obj);
+                    gateway = staticIpConfiguration.getClass().getField("gateway");
+                    gateway.set(staticIpConfiguration, InetAddress.getByName(s_gateway));
+                } catch (InstantiationException e) {
+                    e.printStackTrace();
                 } catch (ClassNotFoundException e) {
                     e.printStackTrace();
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
                 }
-                //
-//                ipConfiguration.getClass().getMethod("init").invoke(ipConfiguration);
-//                Log.d(TAG, staticIpConfiguration==null?"null":"not null");
-//                    return;
-//                wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-//                WifiInfo connectionInfo = wifiManager.getConnectionInfo();
-//                List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
-//                for (WifiConfiguration conf : configuredNetworks) {
-//                    if (conf.networkId == connectionInfo.getNetworkId()) {
-//                        wifiConf = conf;
-//                        break;
-//                    }
-//                }
-//                ipConfiguration = wifiConf.getClass().getMethod("getIpConfiguration").invoke(wifiConf);
-//                staticIpConfiguration = ipConfiguration.getClass().getMethod("getStaticIpConfiguration").invoke(ipConfiguration);
-
-//                LinkAddress ipAddress = (LinkAddress) getDeclaredField(staticIpConfiguration, "ipAddress");
-//                InetAddress gateway = (InetAddress) getDeclaredField(staticIpConfiguration, "gateway");
-//                String domains = (String) getDeclaredField(staticIpConfiguration, "domains");
-//                Log.d(TAG, "ipAddress:" + ipAddress.toString() + " gateway:" + gateway.toString() + " domains:" + domains);
-            } else {
-                LinkAddress ipAddress = (LinkAddress) getDeclaredField(staticIpConfiguration, "ipAddress");
-                InetAddress gateway = (InetAddress) getDeclaredField(staticIpConfiguration, "gateway");
-                String domains = (String) getDeclaredField(staticIpConfiguration, "domains");
-                Log.d(TAG, "ipAddress:" + ipAddress.toString() + " gateway:" + gateway.toString() + " domains:" + domains);
-                ArrayList<InetAddress> dnsServers = (ArrayList<InetAddress>) getDeclaredField(staticIpConfiguration, "dnsServers");
-                dnsServers.clear();
-                dnsServers.add(dns);
             }
         } else {
             // support android 3.X~4.X
@@ -356,7 +325,6 @@ public class DNSWidget extends AppWidgetProvider {
             dos.flush();
             SystemClock.sleep(500);
             dos.close();
-            // the code of waitfor is 255
         } catch (IOException e) {
             Log.e(TAG, "dnsmasq stop error");
         }
@@ -366,6 +334,8 @@ public class DNSWidget extends AppWidgetProvider {
     private void setStatic(Context context) {
         WifiConfiguration wifiConf = null;
         WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        DhcpInfo dhcpInfo = wifiManager.getDhcpInfo();
+        getStaticDefualt(dhcpInfo);
         WifiInfo connectionInfo = wifiManager.getConnectionInfo();
         List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
         for (WifiConfiguration conf : configuredNetworks) {
@@ -377,12 +347,8 @@ public class DNSWidget extends AppWidgetProvider {
         try {
             setIpAssignment("STATIC", wifiConf); //or "DHCP" for dynamic setting
             wifiManager.updateNetwork(wifiConf);
-//            wifiManager.saveConfiguration();
-//            wifiManager.reconnect();
-//            SystemClock.sleep(200);
-            setDNS(InetAddress.getByName("127.0.0.1"), wifiConf, wifiManager, context);
+            setDNS(InetAddress.getByName("127.0.0.1"), wifiConf);
             wifiManager.updateNetwork(wifiConf);
-//            wifiManager.saveConfiguration(); //useless
             wifiManager.disconnect();
             wifiManager.reconnect();
             Log.d(TAG, "set static");
@@ -414,7 +380,6 @@ public class DNSWidget extends AppWidgetProvider {
         try {
             setIpAssignment("DHCP", wifiConf); //or "DHCP" for dynamic setting
             wifiManager.updateNetwork(wifiConf);
-//            wifiManager.saveConfiguration(); //useless
             wifiManager.disconnect();
             wifiManager.reconnect();
         } catch (NoSuchFieldException e) {
@@ -433,6 +398,18 @@ public class DNSWidget extends AppWidgetProvider {
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo info = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
         return info != null && info.isConnected();
+    }
+
+    // get dhcp for static default
+    private void getStaticDefualt(DhcpInfo dhcpInfo) {
+        int ip = dhcpInfo.ipAddress;
+        s_ipaddress = (ip & 0xFF) + "." + ((ip >> 8) & 0xFF) + "." + ((ip >> 16) & 0xFF) + "." + (ip >> 24 & 0xFF);
+        ip = dhcpInfo.netmask;
+        String temp = Integer.toString(ip, 2);
+        s_netmask = temp.length() - temp.replace("1", "").length();
+        ip = dhcpInfo.gateway;
+        s_gateway = (ip & 0xFF) + "." + ((ip >> 8) & 0xFF) + "." + ((ip >> 16) & 0xFF) + "." + (ip >> 24 & 0xFF);
+        Log.d(TAG, "newtork info:" + s_ipaddress + " " + s_netmask + " " + s_gateway);
     }
 }
 
