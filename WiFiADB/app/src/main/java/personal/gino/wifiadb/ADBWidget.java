@@ -1,5 +1,6 @@
 package personal.gino.wifiadb;
 
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
@@ -10,9 +11,10 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.support.annotation.NonNull;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.widget.RemoteViews;
-import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -27,6 +29,8 @@ public class ADBWidget extends AppWidgetProvider {
     private static final String TAG = "adb widget";
     private static final String WIRELESS_ADB_ACTION =
             "personal.gino.wifiadb.WIRELESS_ADB_ACTION";
+    private NotificationCompat.Builder mBuilder;
+    private int mId = 0;
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -40,6 +44,13 @@ public class ADBWidget extends AppWidgetProvider {
     @Override
     public void onEnabled(Context context) {
         // Enter relevant functionality for when the first widget is created
+        mBuilder = new NotificationCompat.Builder(context);
+        mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
+                .setContentTitle("Notice")
+                .setContentText("This app need root access.");
+        NotificationManager mNotificationManager =
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(mId, mBuilder.build());
     }
 
     @Override
@@ -72,29 +83,48 @@ public class ADBWidget extends AppWidgetProvider {
     }
 
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(@NonNull Context context, @NonNull Intent intent) {
         super.onReceive(context, intent);
         // why can get action without intent filter?
         Log.d(TAG, intent.getAction());
+        // create notification
+        mBuilder = new NotificationCompat.Builder(context);
+
         if (intent.getAction() != null && intent.getAction().equals(WIRELESS_ADB_ACTION)) {
             // check adb port and close or open
             if (check()) {
                 close();
-                Toast.makeText(context, R.string.close, Toast.LENGTH_LONG).show();
+                mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
+                        .setContentTitle("Notice")
+                        .setContentText(context.getString(R.string.close));
+//                Toast.makeText(context, R.string.close, Toast.LENGTH_LONG).show();
             } else {
                 if (!isConnectWIFI(context)) {
-                    Toast.makeText(context, R.string.no_wifi, Toast.LENGTH_LONG).show();
+                    mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
+                            .setContentTitle("Notice")
+                            .setContentText(context.getString(R.string.no_wifi));
+//                    Toast.makeText(context, R.string.no_wifi, Toast.LENGTH_LONG).show();
                     Log.w(TAG, "wifi is not open");
                     //connected wifi and open port
                 } else if (isConnectWIFI(context)) {
                     if (open()) {
                         String ipInfo = getWIFIIP(context);
-                        Toast.makeText(context, context.getString(R.string.open) + ipInfo, Toast.LENGTH_LONG).show();
+                        mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
+                                .setContentTitle(context.getString(R.string.open))
+                                .setContentText("Address:" + ipInfo);
+//                        Toast.makeText(context, context.getString(R.string.open) + ipInfo, Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(context, R.string.no_root, Toast.LENGTH_LONG).show();
+                        mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
+                                .setContentTitle("Notice")
+                                .setContentText(context.getString(R.string.no_root));
+//                        Toast.makeText(context, R.string.no_root, Toast.LENGTH_LONG).show();
                     }
                 }
             }
+
+            NotificationManager mNotificationManager =
+                    (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            mNotificationManager.notify(mId, mBuilder.build());
 
             //app widget update
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
