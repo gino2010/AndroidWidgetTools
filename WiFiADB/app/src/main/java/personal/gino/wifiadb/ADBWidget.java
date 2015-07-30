@@ -44,13 +44,13 @@ public class ADBWidget extends AppWidgetProvider {
     @Override
     public void onEnabled(Context context) {
         // Enter relevant functionality for when the first widget is created
-        mBuilder = new NotificationCompat.Builder(context);
-        mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
-                .setContentTitle("Notice")
-                .setContentText("This app need root access.");
-        NotificationManager mNotificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        mNotificationManager.notify(mId, mBuilder.build());
+//        mBuilder = new NotificationCompat.Builder(context);
+//        mBuilder.setSmallIcon(R.drawable.notification_template_icon_bg)
+//                .setContentTitle("Notice")
+//                .setContentText("This app need root access.");
+//        NotificationManager mNotificationManager =
+//                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+//        mNotificationManager.notify(mId, mBuilder.build());
     }
 
     @Override
